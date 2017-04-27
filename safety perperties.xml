@@ -1,0 +1,1617 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
+<nta>
+	<declaration>// Place global declarations here.
+const int maxCycleCounter = 5;
+typedef int[0,maxCycleCounter] CycleCounter;
+const int maxFrameLength = 10;
+typedef int[0,maxFrameLength] FrameLength;
+const int maxSlotCounter = 3;
+typedef int[0,maxSlotCounter] SlotCounter;
+typedef int[0,maxSlotCounter] FRMsgID;
+const int numberOfStaticSlots = 2;
+
+const int staticSlotLength = 10;
+const int maxMinislotCounter = 10;
+typedef int[0,maxMinislotCounter] MinislotCounter;
+const int minislotLength = 2;
+const int NITLength = 2;
+
+const int slotActionPoint = 1;
+const int minislotActionPoint=1; //offset of minislot
+
+const int maxFRMsgLength = 8;
+typedef int[0,maxFRMsgLength] FRMsgLength;
+
+const int maxPriority = 3;
+typedef int[0,maxPriority] CANMsgID;
+
+const int maxCANMsgLength = 5;
+typedef int[0,maxCANMsgLength] CANMsgLength;
+
+
+int slotBoundary;
+int index;
+
+const int CAN = 1;
+const int FR = 2;
+typedef int[0,2] Environment;
+typedef int[0,2] Destination;
+
+typedef struct 
+{
+    FRMsgID id;
+    CycleCounter cycleID;
+    FrameLength frameLength;
+    FRMsgLength length;
+    Environment envir;
+    Destination dest;
+    //bool forwarding;
+} FRFrame;
+FRFrame busFlexRay;
+
+typedef struct 
+{
+    CANMsgID id;
+    FrameLength frameLength;
+    CANMsgLength length;
+    Environment envir;
+    Destination dest;
+    //bool forwarding;
+} CANFrame;
+CANFrame busCAN;
+
+typedef struct
+{
+    CycleCounter cycleCounter;
+    SlotCounter slotCounter;
+    MinislotCounter minislotCounter;
+    bool isValidFrame;
+} CommStatus;
+CommStatus commStatus;
+
+typedef struct
+{
+    FRMsgID id;
+    FRMsgLength length;
+    Environment envir;
+    Destination dest;
+    //bool forwarding;
+} FRMsg;
+FRMsg FRMsgForSend[maxSlotCounter+1];
+FRMsg receiveFRMsg[maxSlotCounter+1];
+
+
+typedef struct
+{
+    CANMsgID id;
+    CANMsgLength length;
+    Environment envir;
+    Destination dest;
+    //bool forwarding;
+} CANMsg;
+CANMsg CANMsgForSend[maxPriority+1];
+CANMsg receiveCANMsg[maxPriority+1];
+
+const int IDLE = 0;
+const int TRANS = 1;
+const int CHIRP = 2;
+int[0,2] busStatus = IDLE;
+
+bool receivedFR;
+bool receivedCAN;
+int CRMsgCounter;
+int FRRMsgCounter;
+
+int CANRPointer;
+int FRRPointer;
+int tempPointer = 0;
+CANMsg forwardForLongMsg[maxFRMsgLength/maxCANMsgLength+2];
+CANMsg tempCAN;
+FRMsg tempFR;
+
+bool f;
+
+urgent chan go;
+chan cycleStart,cycleEnd,dynamicSegmentStart,NITStart;
+chan transmissionRequest,arbSuccess,transEnd;
+chan slotEnd,slotStart,setStaticActionPoint;
+chan forward;
+chan forwardFinish;
+chan tempBufferEmpty;
+</declaration>
+	<template>
+		<name>FRNoTCycle</name>
+		<declaration>clock x;
+void writeFRMsg(FRMsgID id, FRMsgLength length, Destination dest) {
+    FRMsgForSend[id].id = id;
+    FRMsgForSend[id].length = length;
+    //FRMsgForSend[id].forwarding = 1;
+    FRMsgForSend[id].envir = 2;
+    FRMsgForSend[id].dest = dest;
+}</declaration>
+		<location id="id0" x="-535" y="-909">
+			<name x="-518" y="-918">write</name>
+			<urgent/>
+		</location>
+		<location id="id1" x="-782" y="-909">
+			<name x="-799" y="-892">initial</name>
+		</location>
+		<init ref="id1"/>
+		<transition>
+			<source ref="id0"/>
+			<target ref="id1"/>
+			<nail x="-535" y="-1011"/>
+			<nail x="-782" y="-1011"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="select" x="-748" y="-969">id:int[2,2], 
+length:int[3,3],
+dest: int[1,1]</label>
+			<label kind="guard" x="-748" y="-986">FRMsgForSend[id].length ==0</label>
+			<label kind="assignment" x="-739" y="-901">writeFRMsg(id,length,dest)</label>
+		</transition>
+	</template>
+	<template>
+		<name>receiver</name>
+		<location id="id2" x="-119" y="-34">
+		</location>
+		<init ref="id2"/>
+	</template>
+	<template>
+		<name>FROneMsg</name>
+		<declaration>clock x;
+void writeFRMsg(FRMsgID id, FRMsgLength length, Destination dest) {
+    FRMsgForSend[id].id = id;
+    FRMsgForSend[id].length = length;
+    //FRMsgForSend[id].forwarding = 1;
+    FRMsgForSend[id].envir = 2;
+    FRMsgForSend[id].dest = dest;
+}</declaration>
+		<location id="id3" x="-17" y="-59">
+			<name x="-34" y="-42">end</name>
+		</location>
+		<location id="id4" x="-246" y="-59">
+			<name x="-263" y="-42">initial</name>
+		</location>
+		<init ref="id4"/>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id3"/>
+			<label kind="select" x="-228" y="-110">id:int[2,2], 
+length:int[3, 3],
+dest: int[1,1]</label>
+			<label kind="guard" x="-238" y="-127">FRMsgForSend[id].length ==0</label>
+			<label kind="assignment" x="-228" y="-59">writeFRMsg(id,length,dest)</label>
+		</transition>
+	</template>
+	<template>
+		<name>FRTCycle</name>
+		<declaration>clock x;
+int Tcycle = 42;
+void writeFRMsg(FRMsgID id, FRMsgLength length, Destination dest) {
+    FRMsgForSend[id].id = id;
+    FRMsgForSend[id].length = length;
+    //FRMsgForSend[id].forwarding = 1;
+    FRMsgForSend[id].envir = 2;
+    FRMsgForSend[id].dest = dest;
+}</declaration>
+		<location id="id5" x="25" y="-59">
+			<name x="42" y="-76">waiting</name>
+			<label kind="invariant" x="25" y="-34">x&lt;=Tcycle</label>
+		</location>
+		<location id="id6" x="-102" y="-59">
+			<committed/>
+		</location>
+		<location id="id7" x="-236" y="-59">
+			<name x="-246" y="-93">initial</name>
+			<label kind="invariant" x="-246" y="-42">x&lt;=Tcycle</label>
+		</location>
+		<init ref="id7"/>
+		<transition>
+			<source ref="id5"/>
+			<target ref="id6"/>
+			<label kind="guard" x="-76" y="25">x==Tcycle</label>
+			<nail x="25" y="51"/>
+			<nail x="-102" y="51"/>
+		</transition>
+		<transition>
+			<source ref="id6"/>
+			<target ref="id5"/>
+			<label kind="select" x="-93" y="-119">id:int[2,2], 
+length:int[8, 8],
+dest: int[1,1]</label>
+			<label kind="assignment" x="-85" y="-51">writeFRMsg(id,length,dest),
+x:=0</label>
+		</transition>
+		<transition>
+			<source ref="id7"/>
+			<target ref="id6"/>
+			<label kind="guard" x="-204" y="-85">x==Tcycle</label>
+		</transition>
+	</template>
+	<template>
+		<name>CANOneMsg</name>
+		<declaration>clock x;
+void writeCANMsg(CANMsgID id, CANMsgLength length, Destination dest) {
+    CANMsgForSend[id].id = id;
+    CANMsgForSend[id].length = length;
+    CANMsgForSend[id].envir = 1;
+    CANMsgForSend[id].dest = dest;
+    //CANMsgForSend[id].forwarding = 1;
+}</declaration>
+		<location id="id8" x="102" y="-8">
+			<name x="94" y="8">end</name>
+		</location>
+		<location id="id9" x="-136" y="-8">
+			<name x="-161" y="8">initial</name>
+		</location>
+		<init ref="id9"/>
+		<transition>
+			<source ref="id9"/>
+			<target ref="id8"/>
+			<label kind="select" x="-118" y="-59">id:int[1,1], 
+length:int[2,2],
+dest: int[2,2]</label>
+			<label kind="guard" x="-136" y="-76">CANMsgForSend[id].length ==0</label>
+			<label kind="synchronisation" x="-110" y="8">transmissionRequest!</label>
+			<label kind="assignment" x="-119" y="-8">writeCANMsg(id, length, dest)</label>
+		</transition>
+	</template>
+	<template>
+		<name>CANNoTCycle</name>
+		<declaration>clock x;
+void writeCANMsg(CANMsgID id, CANMsgLength length, Destination dest) {
+    CANMsgForSend[id].id = id;
+    CANMsgForSend[id].length = length;
+    CANMsgForSend[id].envir = 1;
+    CANMsgForSend[id].dest = dest;
+    //CANMsgForSend[id].forwarding = 1;
+}</declaration>
+		<location id="id10" x="170" y="-34">
+			<urgent/>
+		</location>
+		<location id="id11" x="-8" y="-34">
+		</location>
+		<init ref="id11"/>
+		<transition>
+			<source ref="id10"/>
+			<target ref="id11"/>
+			<nail x="170" y="-136"/>
+			<nail x="-8" y="-136"/>
+		</transition>
+		<transition>
+			<source ref="id11"/>
+			<target ref="id10"/>
+			<label kind="select" x="51" y="-119">id:int[1,1], 
+length:int[2,2],
+dest: int[2,2]</label>
+			<label kind="guard" x="10" y="-68">CANMsgForSend[id].length ==0</label>
+			<label kind="synchronisation" x="10" y="-51">transmissionRequest!</label>
+			<label kind="assignment" x="-8" y="-17">writeCANMsg(id, length, dest)</label>
+		</transition>
+	</template>
+	<template>
+		<name>CANTCycle</name>
+		<declaration>clock x;
+int Tcycle = 10;
+void writeCANMsg(CANMsgID id, CANMsgLength length, Destination dest) {
+    CANMsgForSend[id].id = id;
+    CANMsgForSend[id].length = length;
+    CANMsgForSend[id].envir = 1;
+    CANMsgForSend[id].dest = dest;
+    //CANMsgForSend[id].forwarding = 1;
+}</declaration>
+		<location id="id12" x="-272" y="-93">
+			<name x="-255" y="-110">waiting</name>
+			<label kind="invariant" x="-272" y="-68">x&lt;=Tcycle</label>
+		</location>
+		<location id="id13" x="-399" y="-93">
+			<committed/>
+		</location>
+		<location id="id14" x="-533" y="-93">
+			<name x="-543" y="-127">initial</name>
+			<label kind="invariant" x="-543" y="-76">x&lt;=Tcycle</label>
+		</location>
+		<init ref="id14"/>
+		<transition>
+			<source ref="id12"/>
+			<target ref="id13"/>
+			<label kind="guard" x="-365" y="-51">x==Tcycle</label>
+			<nail x="-272" y="-25"/>
+			<nail x="-399" y="-25"/>
+		</transition>
+		<transition>
+			<source ref="id13"/>
+			<target ref="id12"/>
+			<label kind="select" x="-390" y="-153">id:int[1,1], 
+length:int[2, 2],
+dest: int[2,2]</label>
+			<label kind="synchronisation" x="-390" y="-170">transmissionRequest!</label>
+			<label kind="assignment" x="-382" y="-85">writeCANMsg(id,length,dest),
+x:=0</label>
+		</transition>
+		<transition>
+			<source ref="id14"/>
+			<target ref="id13"/>
+			<label kind="guard" x="-501" y="-119">x==Tcycle</label>
+		</transition>
+	</template>
+	<template>
+		<name>POC</name>
+		<declaration>clock x;</declaration>
+		<location id="id15" x="128" y="-96">
+			<name x="144" y="-104">wait_for_cycle_end</name>
+		</location>
+		<location id="id16" x="-192" y="-176">
+			<urgent/>
+		</location>
+		<location id="id17" x="-424" y="-96">
+			<name x="-408" y="-119">start_up</name>
+			<label kind="invariant" x="-408" y="-93">x&lt;=0</label>
+		</location>
+		<init ref="id17"/>
+		<transition>
+			<source ref="id17"/>
+			<target ref="id16"/>
+			<label kind="synchronisation" x="-348" y="-204">go?</label>
+			<label kind="assignment" x="-416" y="-170">commStatus.cycleCounter=1</label>
+			<nail x="-425" y="-178"/>
+		</transition>
+		<transition>
+			<source ref="id16"/>
+			<target ref="id15"/>
+			<label kind="guard" x="-170" y="-178">commStatus.cycleCounter&lt;=maxCycleCounter</label>
+			<label kind="synchronisation" x="-76" y="-195">cycleStart!</label>
+			<nail x="128" y="-176"/>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id17"/>
+			<label kind="guard" x="-323" y="-17">commStatus.cycleCounter==maxCycleCounter</label>
+			<label kind="synchronisation" x="-195" y="-34">cycleEnd?</label>
+			<label kind="assignment" x="-178" y="0">x:=0</label>
+			<nail x="128" y="-16"/>
+			<nail x="-424" y="-16"/>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id16"/>
+			<label kind="guard" x="-204" y="-93">commStatus.cycleCounter&lt;maxCycleCounter</label>
+			<label kind="synchronisation" x="-76" y="-119">cycleEnd?</label>
+			<label kind="assignment" x="-161" y="-76">commStatus.cycleCounter++, x:=0</label>
+			<nail x="-192" y="-96"/>
+		</transition>
+	</template>
+	<template>
+		<name x="5" y="5">StaticMAC</name>
+		<declaration>// Place local declarations here.
+clock x;
+
+//int[0,pPayloadLengthDynMax] frame_length;
+
+bool isValidFrameLength()
+{
+  if (FRMsgForSend[commStatus.slotCounter].length &gt; (staticSlotLength-slotActionPoint))
+    return false;  // this should never happen in static segment if parameters are correctly set
+  else
+    return true;
+}
+
+bool isBufferEmpty()
+{
+    if (FRMsgForSend[commStatus.slotCounter].length &gt; 0) return false;
+    return true;
+}
+
+void transmit()
+{
+    busFlexRay.id = commStatus.slotCounter;
+    busFlexRay.cycleID = commStatus.cycleCounter;
+    busFlexRay.dest = FRMsgForSend[commStatus.slotCounter].dest;
+    busFlexRay.envir = 2;
+    busFlexRay.length = FRMsgForSend[commStatus.slotCounter].length;
+    busFlexRay.frameLength = FRMsgForSend[commStatus.slotCounter].length + 0;
+    FRMsgForSend[commStatus.slotCounter].length = 0;
+}
+ </declaration>
+		<location id="id18" x="8" y="51">
+			<name x="-77" y="68">waitingForStaticSlotBoundary</name>
+			<label kind="invariant" x="-42" y="85">x&lt;=staticSlotLength</label>
+		</location>
+		<location id="id19" x="204" y="51">
+			<name x="220" y="35">waitingFortheEndofTransmission</name>
+			<label kind="invariant" x="229" y="51">x&lt;=busFlexRay.length</label>
+		</location>
+		<location id="id20" x="-510" y="-153">
+			<name x="-558" y="-193">wait_cycle_start</name>
+		</location>
+		<location id="id21" x="204" y="-153">
+			<name x="166" y="-196">sendingMsg</name>
+			<committed/>
+		</location>
+		<location id="id22" x="-170" y="51">
+			<committed/>
+		</location>
+		<location id="id23" x="-170" y="-153">
+			<name x="-233" y="-188">waitingActionPoint</name>
+			<label kind="invariant" x="-224" y="-137">x&lt;=slotActionPoint</label>
+		</location>
+		<init ref="id20"/>
+		<transition>
+			<source ref="id22"/>
+			<target ref="id20"/>
+			<label kind="guard" x="-501" y="-68">commStatus.slotCounter&gt;=numberOfStaticSlots &amp;&amp;
+maxMinislotCounter==0</label>
+			<label kind="synchronisation" x="-297" y="-51">NITStart!</label>
+			<label kind="assignment" x="-314" y="-25">x:=0</label>
+		</transition>
+		<transition>
+			<source ref="id22"/>
+			<target ref="id20"/>
+			<label kind="guard" x="-544" y="8">commStatus.slotCounter&gt;=numberOfStaticSlots &amp;&amp;
+maxMinislotCounter&gt;0</label>
+			<label kind="synchronisation" x="-459" y="51">dynamicSegmentStart!</label>
+			<label kind="assignment" x="-425" y="68">x:=0</label>
+			<nail x="-510" y="51"/>
+		</transition>
+		<transition>
+			<source ref="id22"/>
+			<target ref="id23"/>
+			<label kind="guard" x="-306" y="-110">commStatus.slotCounter&lt;numberOfStaticSlots</label>
+			<label kind="assignment" x="-238" y="-93">x:=0, commStatus.slotCounter++</label>
+		</transition>
+		<transition>
+			<source ref="id21"/>
+			<target ref="id18"/>
+			<label kind="guard" x="17" y="-59">isBufferEmpty() or
+!isValidFrameLength()</label>
+		</transition>
+		<transition>
+			<source ref="id21"/>
+			<target ref="id19"/>
+			<label kind="guard" x="212" y="-85">!isBufferEmpty()&amp;&amp;
+isValidFrameLength()</label>
+			<label kind="assignment" x="212" y="-51">x:=0, transmit(),
+busStatus=TRANS</label>
+		</transition>
+		<transition>
+			<source ref="id18"/>
+			<target ref="id22"/>
+			<label kind="guard" x="-153" y="25">x==staticSlotLength</label>
+			<label kind="assignment" x="-136" y="51">busStatus=IDLE</label>
+		</transition>
+		<transition>
+			<source ref="id19"/>
+			<target ref="id18"/>
+			<label kind="guard" x="34" y="25">x==busFlexRay.length</label>
+			<label kind="assignment" x="51" y="51">busStatus=CHIRP</label>
+		</transition>
+		<transition>
+			<source ref="id23"/>
+			<target ref="id21"/>
+			<label kind="guard" x="-51" y="-178">x==slotActionPoint</label>
+		</transition>
+		<transition>
+			<source ref="id20"/>
+			<target ref="id23"/>
+			<label kind="synchronisation" x="-432" y="-176">cycleStart?</label>
+			<label kind="assignment" x="-432" y="-152">commStatus.slotCounter=1,
+x:=0</label>
+		</transition>
+	</template>
+	<template>
+		<name>DynamicMAC</name>
+		<declaration>clock x;
+int dynamicSlotActionPoint;
+//const int MT_per_cycle = cycle_MT();
+
+//int cycle_MT()  // calculate totol Macrotick of a cycle
+//{
+  //int temp;
+  //temp = (maxNumberOfStaticSlots * staticSlotLength) + (maxNumberOfMinislots * minislotLength);
+  //if (staticSlotActionPoint &gt; minislotActionPoint) temp = temp + (staticSlotActionPoint - minislotActionPoint);
+  //return temp;
+//}
+
+bool isBufferEmpty()
+{
+    if (FRMsgForSend[commStatus.slotCounter].length &gt; 0) return false;
+    return true;
+}
+
+int remainMinislots()
+{
+  return maxMinislotCounter - commStatus.minislotCounter;
+}
+
+bool isMinislotEnough()
+{
+  if (FRMsgForSend[commStatus.slotCounter].length &gt;= (remainMinislots() * minislotLength)) return false;
+  return true;
+}
+
+void adjustFrameLength()
+{
+  int i ;
+  int temp = busFlexRay.frameLength - (minislotLength - dynamicSlotActionPoint + minislotActionPoint);
+  if (temp &lt;= 0 ) 
+  {
+    busFlexRay.frameLength = minislotLength - dynamicSlotActionPoint + minislotActionPoint;
+  }
+  else 
+  {
+    i++;
+    while(temp &gt;= minislotLength) 
+    {
+        i++;
+        temp = temp - minislotLength;
+    }
+    busFlexRay.frameLength = i * minislotLength + (minislotLength - dynamicSlotActionPoint) + minislotActionPoint;
+  }
+}
+
+void transmit()
+{
+    busFlexRay.id = commStatus.slotCounter;
+    busFlexRay.cycleID = commStatus.cycleCounter;
+    busFlexRay.length = FRMsgForSend[commStatus.slotCounter].length;
+    busFlexRay.dest = FRMsgForSend[commStatus.slotCounter].dest;
+    busFlexRay.envir = FRMsgForSend[commStatus.slotCounter].envir;
+    busFlexRay.frameLength = FRMsgForSend[commStatus.slotCounter].length + 2;
+   // adjustFrameLength();
+    FRMsgForSend[commStatus.slotCounter].length = 0;
+}
+
+int computeMinislot()
+{
+  int temp = busFlexRay.frameLength - (minislotLength - dynamicSlotActionPoint);
+  while(temp &gt; minislotLength)
+  {
+    temp = temp - minislotLength;
+    commStatus.minislotCounter ++;
+  } 
+  return commStatus.minislotCounter + 1;
+}
+
+int dynamicSlotBoundary()
+{
+  return minislotLength * commStatus.minislotCounter;
+}
+
+int dynamicSegmentBoundary()
+{
+  return minislotLength * (maxMinislotCounter - commStatus.minislotCounter);
+}</declaration>
+		<location id="id24" x="-6587" y="-7803">
+			<label kind="invariant" x="-6681" y="-7794">x&lt;= dynamicSegmentBoundary()</label>
+		</location>
+		<location id="id25" x="-6587" y="-7990">
+			<urgent/>
+		</location>
+		<location id="id26" x="-6434" y="-7803">
+			<urgent/>
+		</location>
+		<location id="id27" x="-6281" y="-7990">
+			<urgent/>
+		</location>
+		<location id="id28" x="-6026" y="-7803">
+			<label kind="invariant" x="-6043" y="-7837">x&lt;=dynamicSlotBoundary()</label>
+		</location>
+		<location id="id29" x="-6281" y="-7803">
+			<urgent/>
+		</location>
+		<location id="id30" x="-6035" y="-7956">
+			<label kind="invariant" x="-6035" y="-7947">x&lt;=minislotLength</label>
+		</location>
+		<location id="id31" x="-5831" y="-7803">
+			<label kind="invariant" x="-5856" y="-7794">x&lt;=busFlexRay.length+dynamicSlotActionPoint</label>
+		</location>
+		<location id="id32" x="-5831" y="-7956">
+			<urgent/>
+		</location>
+		<location id="id33" x="-5831" y="-8125">
+			<name x="-5890" y="-8092">waitingforSlotAcionPoint</name>
+			<label kind="invariant" x="-5907" y="-8109">x&lt;=dynamicSlotActionPoint</label>
+		</location>
+		<location id="id34" x="-6281" y="-8125">
+			<urgent/>
+		</location>
+		<location id="id35" x="-6587" y="-8125">
+		</location>
+		<init ref="id35"/>
+		<transition>
+			<source ref="id34"/>
+			<target ref="id33"/>
+			<label kind="guard" x="-6239" y="-8126">slotActionPoint&lt;=minislotActionPoint</label>
+			<label kind="assignment" x="-6239" y="-8092">dynamicSlotActionPoint:=minislotActionPoint</label>
+			<nail x="-6247" y="-8092"/>
+			<nail x="-5856" y="-8092"/>
+		</transition>
+		<transition>
+			<source ref="id24"/>
+			<target ref="id25"/>
+			<label kind="guard" x="-6689" y="-7871">x==dynamicSegmentBoundary()</label>
+		</transition>
+		<transition>
+			<source ref="id26"/>
+			<target ref="id25"/>
+			<label kind="guard" x="-6630" y="-7913">commStatus.minislotCounter==maxMinislotCounter</label>
+		</transition>
+		<transition>
+			<source ref="id26"/>
+			<target ref="id24"/>
+			<label kind="guard" x="-6698" y="-7777">commStatus.minislotCounter&lt;maxMinislotCounter</label>
+			<label kind="assignment" x="-6569" y="-7803">x:=0</label>
+		</transition>
+		<transition>
+			<source ref="id25"/>
+			<target ref="id35"/>
+			<label kind="synchronisation" x="-6579" y="-8058">NITStart!</label>
+			<label kind="assignment" x="-6579" y="-8041">commStatus.minislotCounter:=0</label>
+		</transition>
+		<transition>
+			<source ref="id27"/>
+			<target ref="id25"/>
+			<label kind="guard" x="-6596" y="-8015">commStatus.minislotCounter==maxMinislotCounter</label>
+		</transition>
+		<transition>
+			<source ref="id27"/>
+			<target ref="id34"/>
+			<label kind="guard" x="-6324" y="-8058">commStatus.minislotCounter&lt;maxMinislotCounter</label>
+			<label kind="assignment" x="-6281" y="-8041">x:=0,commStatus.slotCounter++</label>
+		</transition>
+		<transition>
+			<source ref="id29"/>
+			<target ref="id27"/>
+			<label kind="guard" x="-6434" y="-7947">commStatus.slotCounter&lt; maxSlotCounter</label>
+		</transition>
+		<transition>
+			<source ref="id29"/>
+			<target ref="id26"/>
+			<label kind="guard" x="-6536" y="-7845">commStatus.slotCounter==maxSlotCounter</label>
+		</transition>
+		<transition>
+			<source ref="id28"/>
+			<target ref="id29"/>
+			<label kind="guard" x="-6239" y="-7820">x==dynamicSlotBoundary()</label>
+			<label kind="assignment" x="-6222" y="-7803">busStatus=IDLE</label>
+		</transition>
+		<transition>
+			<source ref="id33"/>
+			<target ref="id32"/>
+			<label kind="guard" x="-5882" y="-8007">x==dynamicSlotActionPoint</label>
+			<label kind="assignment" x="-5831" y="-8040">commStatus.minislotCounter++</label>
+		</transition>
+		<transition>
+			<source ref="id34"/>
+			<target ref="id33"/>
+			<label kind="guard" x="-6239" y="-8194">slotActionPoint&gt;minislotActionPoint</label>
+			<label kind="assignment" x="-6239" y="-8160">dynamicSlotActionPoint:=slotActionPoint</label>
+			<nail x="-6247" y="-8159"/>
+			<nail x="-5856" y="-8159"/>
+		</transition>
+		<transition>
+			<source ref="id31"/>
+			<target ref="id28"/>
+			<label kind="guard" x="-5992" y="-7820">x==busFlexRay.length+dynamicSlotActionPoint</label>
+			<label kind="assignment" x="-5992" y="-7794">busStatus=CHIRP,
+commStatus.minislotCounter:=computeMinislot()</label>
+		</transition>
+		<transition>
+			<source ref="id30"/>
+			<target ref="id29"/>
+			<label kind="guard" x="-6137" y="-7896">x==minislotLength</label>
+			<label kind="assignment" x="-6137" y="-7879">busStatus=IDLE</label>
+		</transition>
+		<transition>
+			<source ref="id32"/>
+			<target ref="id30"/>
+			<label kind="guard" x="-5992" y="-7990">isBufferEmpty() or 
+!isMinislotEnough()</label>
+		</transition>
+		<transition>
+			<source ref="id32"/>
+			<target ref="id31"/>
+			<label kind="guard" x="-5967" y="-7913">!isBufferEmpty() &amp;&amp;
+isMinislotEnough()</label>
+			<label kind="assignment" x="-5967" y="-7879">busStatus=TRANS,
+transmit()</label>
+		</transition>
+		<transition>
+			<source ref="id35"/>
+			<target ref="id34"/>
+			<label kind="synchronisation" x="-6511" y="-8142">dynamicSegmentStart?</label>
+			<label kind="assignment" x="-6519" y="-8117">commStatus.slotCounter++,
+commStatus.minislotCounter++,
+x:=0</label>
+		</transition>
+	</template>
+	<template>
+		<name>NIT</name>
+		<declaration>clock x;</declaration>
+		<location id="id36" x="-68" y="-59">
+			<label kind="invariant" x="-52" y="-54">x&lt;=NITLength</label>
+		</location>
+		<location id="id37" x="-320" y="-64">
+		</location>
+		<init ref="id37"/>
+		<transition>
+			<source ref="id36"/>
+			<target ref="id37"/>
+			<label kind="guard" x="-238" y="-25">x==NITLength</label>
+			<label kind="synchronisation" x="-229" y="-51">cycleEnd!</label>
+			<nail x="-85" y="-25"/>
+			<nail x="-297" y="-25"/>
+		</transition>
+		<transition>
+			<source ref="id37"/>
+			<target ref="id36"/>
+			<label kind="synchronisation" x="-229" y="-127">NITStart?</label>
+			<label kind="assignment" x="-297" y="-102">commStatus.slotCounter:=0,
+x:=0</label>
+			<nail x="-306" y="-102"/>
+			<nail x="-85" y="-102"/>
+		</transition>
+	</template>
+	<template>
+		<name>FSP</name>
+		<declaration>
+
+
+void receive()
+{
+   if (receiveFRMsg[busFlexRay.id].length!=0){
+   receiveFRMsg[busFlexRay.id].length = busFlexRay.length;
+   receiveFRMsg[busFlexRay.id].id = busFlexRay.id;
+   receiveFRMsg[busFlexRay.id].envir = busFlexRay.envir;
+   receiveFRMsg[busFlexRay.id].dest = busFlexRay.dest;
+  }
+   else {
+   FRRMsgCounter++;
+   receiveFRMsg[busFlexRay.id].length = busFlexRay.length;
+   receiveFRMsg[busFlexRay.id].id = busFlexRay.id;
+   receiveFRMsg[busFlexRay.id].envir = busFlexRay.envir;
+   receiveFRMsg[busFlexRay.id].dest = busFlexRay.dest;
+}
+
+}
+
+void resetBusFlexRay()
+{
+  busFlexRay.id =0;
+  busFlexRay.frameLength = 0;
+  busFlexRay.length=0;
+}
+</declaration>
+		<location id="id38" x="85" y="127">
+			<urgent/>
+		</location>
+		<location id="id39" x="-272" y="127">
+		</location>
+		<location id="id40" x="85" y="-8">
+			<name x="101" y="-32">wait_for_CHIRP</name>
+		</location>
+		<location id="id41" x="-272" y="-8">
+			<name x="-328" y="-40">wait_for_CE_start</name>
+		</location>
+		<init ref="id41"/>
+		<transition>
+			<source ref="id41"/>
+			<target ref="id40"/>
+			<label kind="guard" x="-187" y="-8">busStatus==TRANS</label>
+			<label kind="synchronisation" x="-144" y="-34">go?</label>
+		</transition>
+		<transition>
+			<source ref="id38"/>
+			<target ref="id39"/>
+			<label kind="synchronisation" x="-127" y="110">forward!</label>
+			<label kind="assignment" x="-170" y="127">resetBusFlexRay()</label>
+		</transition>
+		<transition>
+			<source ref="id40"/>
+			<target ref="id38"/>
+			<label kind="guard" x="85" y="25">busStatus==CHIRP</label>
+			<label kind="synchronisation" x="85" y="42">go?</label>
+			<label kind="assignment" x="85" y="68">receive()</label>
+		</transition>
+		<transition>
+			<source ref="id39"/>
+			<target ref="id41"/>
+			<label kind="guard" x="-289" y="51">busStatus==IDLE</label>
+			<label kind="synchronisation" x="-246" y="68">go?</label>
+		</transition>
+	</template>
+	<template>
+		<name>gatewayNew</name>
+		<declaration>clock x;
+const int delay = 1; 
+
+void uploadCAN(){
+    tempCAN.id = receiveCANMsg[CANRPointer].id;
+    tempCAN.length = receiveCANMsg[CANRPointer].length;
+    tempCAN.envir = receiveCANMsg[CANRPointer].envir;
+    tempCAN.dest = receiveCANMsg[CANRPointer].dest;
+    receiveCANMsg[CANRPointer].length = 0; 
+}
+
+void uploadFR(){
+    tempFR.id = receiveFRMsg[FRRPointer].id;
+    tempFR.length = receiveFRMsg[FRRPointer].length;
+    tempFR.envir = receiveFRMsg[FRRPointer].envir;
+    tempFR.dest = receiveFRMsg[FRRPointer].dest;
+    receiveFRMsg[FRRPointer].length = 0; 
+}
+
+void forwardCANR(){
+  if(receiveCANMsg[CANRPointer].dest != receiveCANMsg[CANRPointer].envir) {
+      FRMsgForSend[CANRPointer].id = tempCAN.id + numberOfStaticSlots;
+      FRMsgForSend[CANRPointer].length = tempCAN.length;
+      FRMsgForSend[CANRPointer].envir = 2;
+      FRMsgForSend[CANRPointer].dest = tempCAN.dest;
+      tempCAN.length = 0;
+  }
+   else {
+      tempCAN.length = 0;
+    }
+} 
+
+void forwardFRR(){
+  if(receiveFRMsg[FRRPointer].dest != receiveFRMsg[FRRPointer].envir) {
+      CANMsgForSend[FRRPointer].id = tempFR.id;
+      CANMsgForSend[FRRPointer].length = tempFR.length;
+      CANMsgForSend[FRRPointer].envir = 1;
+      CANMsgForSend[FRRPointer].dest = tempFR.dest;
+      tempFR.length = 0;  
+  }
+  else {
+    tempFR.length = 0;  
+    }
+}
+
+
+void upload(){
+  if(receiveFRMsg[FRRPointer].dest != receiveFRMsg[FRRPointer].envir){
+   while(receiveFRMsg[FRRPointer].length &gt; maxCANMsgLength){
+    forwardForLongMsg[tempPointer].id = receiveFRMsg[FRRPointer].id;
+    forwardForLongMsg[tempPointer].length = maxCANMsgLength;
+    forwardForLongMsg[tempPointer].envir = receiveFRMsg[FRRPointer].envir;
+    forwardForLongMsg[tempPointer].dest =receiveFRMsg[FRRPointer].dest;
+    receiveFRMsg[FRRPointer].length = receiveFRMsg[FRRPointer].length - maxCANMsgLength;
+    tempPointer++;
+}
+    forwardForLongMsg[tempPointer].id = receiveFRMsg[FRRPointer].id;
+    forwardForLongMsg[tempPointer].length = receiveFRMsg[FRRPointer].length;
+    forwardForLongMsg[tempPointer].envir = receiveFRMsg[FRRPointer].envir;
+    forwardForLongMsg[tempPointer].dest =receiveFRMsg[FRRPointer].dest;
+    receiveFRMsg[FRRPointer].length = 0;
+}
+  else receiveFRMsg[FRRPointer].length = 0;  
+}
+
+void forwardTemp(){
+      CANMsgForSend[FRRPointer].id = forwardForLongMsg[tempPointer].id;
+      CANMsgForSend[FRRPointer].length = forwardForLongMsg[tempPointer].length;
+      CANMsgForSend[FRRPointer].envir = 1;
+      CANMsgForSend[FRRPointer].dest = forwardForLongMsg[tempPointer].dest;
+      forwardForLongMsg[tempPointer].length = 0;  
+
+}</declaration>
+		<location id="id42" x="-1496" y="170">
+		</location>
+		<location id="id43" x="-1989" y="238">
+		</location>
+		<location id="id44" x="-2065" y="144">
+		</location>
+		<location id="id45" x="-1088" y="153">
+		</location>
+		<location id="id46" x="-1062" y="-119">
+		</location>
+		<location id="id47" x="-1989" y="-119">
+		</location>
+		<location id="id48" x="-2065" y="0">
+			<label kind="invariant" x="-2075" y="17">x&lt;=delay</label>
+		</location>
+		<location id="id49" x="-1768" y="144">
+			<urgent/>
+		</location>
+		<location id="id50" x="-2176" y="238">
+			<label kind="invariant" x="-2218" y="204">x&lt;=delay</label>
+		</location>
+		<location id="id51" x="-1768" y="238">
+			<urgent/>
+		</location>
+		<location id="id52" x="-1496" y="238">
+			<label kind="invariant" x="-1479" y="229">x&lt;=delay</label>
+		</location>
+		<location id="id53" x="-1496" y="85">
+			<urgent/>
+		</location>
+		<location id="id54" x="-2184" y="-119">
+			<label kind="invariant" x="-2201" y="-102">x&lt;=delay</label>
+		</location>
+		<location id="id55" x="-1759" y="-119">
+			<urgent/>
+		</location>
+		<location id="id56" x="-884" y="153">
+			<label kind="invariant" x="-935" y="170">x&lt;=delay</label>
+		</location>
+		<location id="id57" x="-1224" y="153">
+			<urgent/>
+		</location>
+		<location id="id58" x="-884" y="-119">
+			<label kind="invariant" x="-935" y="-102">x&lt;=delay</label>
+		</location>
+		<location id="id59" x="-1224" y="-119">
+			<urgent/>
+		</location>
+		<location id="id60" x="-1496" y="-119">
+			<name x="-1555" y="-102">monitor_interface</name>
+			<urgent/>
+		</location>
+		<location id="id61" x="-1496" y="-306">
+			<name x="-1470" y="-314">idle</name>
+		</location>
+		<init ref="id61"/>
+		<transition>
+			<source ref="id42"/>
+			<target ref="id42"/>
+			<label kind="synchronisation" x="-1445" y="136">forward?</label>
+			<nail x="-1428" y="127"/>
+			<nail x="-1428" y="204"/>
+		</transition>
+		<transition>
+			<source ref="id42"/>
+			<target ref="id52"/>
+			<label kind="guard" x="-1564" y="195">CANMsgForSend[CANRPointer].length==0</label>
+			<label kind="synchronisation" x="-1538" y="178">go?</label>
+			<label kind="assignment" x="-1538" y="212">x:=0</label>
+		</transition>
+		<transition>
+			<source ref="id53"/>
+			<target ref="id42"/>
+			<label kind="guard" x="-1632" y="102">receiveCANMsg[CANRPointer].length&gt;0</label>
+			<label kind="assignment" x="-1554" y="123">uploadCAN()</label>
+		</transition>
+		<transition>
+			<source ref="id46"/>
+			<target ref="id46"/>
+			<label kind="synchronisation" x="-1088" y="-195">forward?</label>
+			<nail x="-1088" y="-170"/>
+			<nail x="-1020" y="-170"/>
+		</transition>
+		<transition>
+			<source ref="id45"/>
+			<target ref="id45"/>
+			<label kind="synchronisation" x="-1113" y="212">forward?</label>
+			<nail x="-1130" y="212"/>
+			<nail x="-1045" y="212"/>
+		</transition>
+		<transition>
+			<source ref="id47"/>
+			<target ref="id47"/>
+			<label kind="synchronisation" x="-2013" y="-187">forward?</label>
+			<nail x="-2031" y="-170"/>
+			<nail x="-1938" y="-170"/>
+		</transition>
+		<transition>
+			<source ref="id44"/>
+			<target ref="id44"/>
+			<label kind="synchronisation" x="-2142" y="144">forward?</label>
+			<nail x="-2099" y="170"/>
+			<nail x="-2099" y="110"/>
+		</transition>
+		<transition>
+			<source ref="id43"/>
+			<target ref="id43"/>
+			<label kind="synchronisation" x="-2014" y="289">forward?</label>
+			<nail x="-1955" y="289"/>
+			<nail x="-2023" y="289"/>
+		</transition>
+		<transition>
+			<source ref="id44"/>
+			<target ref="id48"/>
+			<label kind="guard" x="-2142" y="59">CANMsgForSend[FRRPointer].length==0</label>
+			<label kind="synchronisation" x="-2142" y="42">go?</label>
+			<label kind="assignment" x="-2142" y="76">x:=0</label>
+		</transition>
+		<transition>
+			<source ref="id49"/>
+			<target ref="id44"/>
+			<label kind="guard" x="-2057" y="110">forwardForLongMsg[tempPointer].length&gt;0</label>
+		</transition>
+		<transition>
+			<source ref="id43"/>
+			<target ref="id50"/>
+			<label kind="guard" x="-2150" y="246">CANMsgForSend[FRRPointer].length &lt;=0</label>
+			<label kind="synchronisation" x="-2091" y="263">go?</label>
+			<label kind="assignment" x="-2125" y="212">x:=0</label>
+		</transition>
+		<transition>
+			<source ref="id51"/>
+			<target ref="id43"/>
+			<label kind="guard" x="-2074" y="195">0&lt;receiveFRMsg[FRRPointer].length &amp;&amp;
+receiveFRMsg[FRRPointer].length &lt;= maxCANMsgLength</label>
+			<label kind="assignment" x="-1971" y="238">uploadFR()</label>
+		</transition>
+		<transition>
+			<source ref="id45"/>
+			<target ref="id56"/>
+			<label kind="guard" x="-1113" y="110">CANMsgForSend[FRRPointer].length ==0</label>
+			<label kind="synchronisation" x="-978" y="136">go?</label>
+			<label kind="assignment" x="-1054" y="153">x:=0</label>
+		</transition>
+		<transition>
+			<source ref="id57"/>
+			<target ref="id45"/>
+			<label kind="guard" x="-1309" y="178">forwardForLongMsg[tempPointer].length&gt;0</label>
+		</transition>
+		<transition>
+			<source ref="id46"/>
+			<target ref="id58"/>
+			<label kind="guard" x="-1045" y="-161">CANMsgForSend[FRRPointer].length ==0</label>
+			<label kind="synchronisation" x="-969" y="-178">go?</label>
+			<label kind="assignment" x="-1045" y="-144">x:=0</label>
+		</transition>
+		<transition>
+			<source ref="id59"/>
+			<target ref="id46"/>
+			<label kind="guard" x="-1224" y="-102">0&lt;receiveFRMsg[FRRPointer].length &amp;&amp;
+receiveFRMsg[FRRPointer].length &lt;=maxCANMsgLength</label>
+			<label kind="assignment" x="-1206" y="-119">uploadFR()</label>
+		</transition>
+		<transition>
+			<source ref="id47"/>
+			<target ref="id54"/>
+			<label kind="guard" x="-2210" y="-161">FRMsgForSend[CANRPointer].length==0</label>
+			<label kind="synchronisation" x="-2108" y="-144">go?</label>
+			<label kind="assignment" x="-2133" y="-119">x:=0</label>
+		</transition>
+		<transition>
+			<source ref="id55"/>
+			<target ref="id47"/>
+			<label kind="guard" x="-2006" y="-102">receiveCANMsg[CANRPointer].length&gt;0</label>
+			<label kind="assignment" x="-1971" y="-119">uploadCAN()</label>
+		</transition>
+		<transition>
+			<source ref="id50"/>
+			<target ref="id60"/>
+			<label kind="guard" x="-2244" y="85">x&gt;=delay</label>
+			<label kind="synchronisation" x="-2261" y="102">transmissionRequest!</label>
+			<label kind="assignment" x="-2252" y="119">forwardFRR(), 
+FRRMsgCounter--</label>
+			<nail x="-2176" y="119"/>
+			<nail x="-2176" y="-68"/>
+			<nail x="-1666" y="-68"/>
+		</transition>
+		<transition>
+			<source ref="id49"/>
+			<target ref="id60"/>
+			<label kind="guard" x="-1802" y="-25">forwardForLongMsg[tempPointer].length == 0</label>
+			<label kind="assignment" x="-1700" y="-8">FRRMsgCounter--, tempPointer:=0</label>
+		</transition>
+		<transition>
+			<source ref="id48"/>
+			<target ref="id48"/>
+			<label kind="synchronisation" x="-2133" y="-25">forward?</label>
+			<nail x="-2099" y="-34"/>
+			<nail x="-2099" y="34"/>
+		</transition>
+		<transition>
+			<source ref="id48"/>
+			<target ref="id49"/>
+			<label kind="guard" x="-1980" y="-25">x==delay</label>
+			<label kind="synchronisation" x="-1981" y="0">transmissionRequest!</label>
+			<label kind="assignment" x="-1980" y="17">forwardTemp(), 
+tempPointer++</label>
+			<nail x="-2007" y="0"/>
+			<nail x="-1769" y="0"/>
+		</transition>
+		<transition>
+			<source ref="id51"/>
+			<target ref="id49"/>
+			<label kind="guard" x="-1980" y="161">receiveFRMsg[FRRPointer].length &gt;maxCANMsgLength</label>
+			<label kind="assignment" x="-1836" y="178">upload(), tempPointer:=0</label>
+		</transition>
+		<transition>
+			<source ref="id50"/>
+			<target ref="id50"/>
+			<label kind="synchronisation" x="-2201" y="289">forward?</label>
+			<nail x="-2133" y="289"/>
+			<nail x="-2218" y="289"/>
+		</transition>
+		<transition>
+			<source ref="id51"/>
+			<target ref="id51"/>
+			<label kind="guard" x="-1853" y="272">receiveFRMsg[FRRPointer].length &lt;=0</label>
+			<label kind="assignment" x="-1801" y="297">FRRPointer++</label>
+			<nail x="-1725" y="289"/>
+			<nail x="-1802" y="289"/>
+		</transition>
+		<transition>
+			<source ref="id52"/>
+			<target ref="id52"/>
+			<label kind="synchronisation" x="-1521" y="289">forward?</label>
+			<nail x="-1462" y="289"/>
+			<nail x="-1530" y="289"/>
+		</transition>
+		<transition>
+			<source ref="id53"/>
+			<target ref="id53"/>
+			<label kind="guard" x="-1657" y="60">receiveCANMsg[CANRPointer].length&lt;=0</label>
+			<label kind="assignment" x="-1657" y="85">CANRPointer++</label>
+			<nail x="-1589" y="43"/>
+			<nail x="-1589" y="127"/>
+		</transition>
+		<transition>
+			<source ref="id52"/>
+			<target ref="id51"/>
+			<label kind="guard" x="-1657" y="238">x==delay</label>
+			<label kind="assignment" x="-1666" y="204">forwardCANR(),
+CRMsgCounter--</label>
+		</transition>
+		<transition>
+			<source ref="id60"/>
+			<target ref="id53"/>
+			<label kind="guard" x="-1564" y="25">CRMsgCounter &gt; 0&amp;&amp;
+FRRMsgCounter &gt; 0</label>
+			<label kind="assignment" x="-1564" y="8">CANRPointer=1, FRRPointer:=1</label>
+		</transition>
+		<transition>
+			<source ref="id55"/>
+			<target ref="id55"/>
+			<label kind="guard" x="-1921" y="-229">receiveCANMsg[CANRPointer].length&lt;=0</label>
+			<label kind="assignment" x="-1819" y="-212">CANRPointer++</label>
+			<nail x="-1691" y="-212"/>
+			<nail x="-1827" y="-212"/>
+		</transition>
+		<transition>
+			<source ref="id54"/>
+			<target ref="id54"/>
+			<label kind="synchronisation" x="-2261" y="-127">forward?</label>
+			<nail x="-2218" y="-153"/>
+			<nail x="-2218" y="-76"/>
+		</transition>
+		<transition>
+			<source ref="id54"/>
+			<target ref="id60"/>
+			<label kind="guard" x="-2048" y="-297">x==delay</label>
+			<label kind="assignment" x="-1972" y="-297">forwardCANR(), CRMsgCounter--</label>
+			<nail x="-2184" y="-272"/>
+			<nail x="-1649" y="-272"/>
+		</transition>
+		<transition>
+			<source ref="id60"/>
+			<target ref="id55"/>
+			<label kind="guard" x="-1683" y="-153">CRMsgCounter &gt; 0&amp;&amp;
+FRRMsgCounter == 0</label>
+			<label kind="assignment" x="-1683" y="-119">CANRPointer:=1</label>
+		</transition>
+		<transition>
+			<source ref="id57"/>
+			<target ref="id60"/>
+			<label kind="guard" x="-1419" y="42">forwardForLongMsg[tempPointer].length == 0</label>
+			<label kind="assignment" x="-1360" y="76">tempPointer:=0, FRRMsgCounter--, f=1</label>
+			<nail x="-1300" y="76"/>
+		</transition>
+		<transition>
+			<source ref="id56"/>
+			<target ref="id57"/>
+			<label kind="guard" x="-1011" y="0">x==delay</label>
+			<label kind="synchronisation" x="-1045" y="17">transmissionRequest!</label>
+			<label kind="assignment" x="-1028" y="34">forwardTemp(),
+tempPointer++</label>
+			<nail x="-884" y="-8"/>
+			<nail x="-1054" y="-8"/>
+		</transition>
+		<transition>
+			<source ref="id56"/>
+			<target ref="id56"/>
+			<label kind="synchronisation" x="-841" y="132">forward?</label>
+			<nail x="-850" y="119"/>
+			<nail x="-850" y="178"/>
+		</transition>
+		<transition>
+			<source ref="id58"/>
+			<target ref="id58"/>
+			<label kind="synchronisation" x="-850" y="-127">forward?</label>
+			<nail x="-850" y="-153"/>
+			<nail x="-850" y="-93"/>
+		</transition>
+		<transition>
+			<source ref="id58"/>
+			<target ref="id60"/>
+			<label kind="guard" x="-1375" y="-289">x&gt;=delay</label>
+			<label kind="synchronisation" x="-1375" y="-272">transmissionRequest!</label>
+			<label kind="assignment" x="-1375" y="-255">forwardFRR(), FRRMsgCounter--</label>
+			<nail x="-884" y="-255"/>
+			<nail x="-1393" y="-255"/>
+		</transition>
+		<transition>
+			<source ref="id59"/>
+			<target ref="id59"/>
+			<label kind="guard" x="-1360" y="-212">receiveFRMsg[FRRPointer].length &lt;=0</label>
+			<label kind="assignment" x="-1257" y="-187">FRRPointer++</label>
+			<nail x="-1275" y="-187"/>
+			<nail x="-1173" y="-187"/>
+		</transition>
+		<transition>
+			<source ref="id59"/>
+			<target ref="id57"/>
+			<label kind="guard" x="-1258" y="-34">receiveFRMsg[FRRPointer].length &gt;maxCANMsgLength</label>
+			<label kind="assignment" x="-1258" y="-17">upload(), tempPointer:=0</label>
+		</transition>
+		<transition>
+			<source ref="id61"/>
+			<target ref="id60"/>
+			<label kind="synchronisation" x="-1470" y="-272">forward?</label>
+			<nail x="-1462" y="-229"/>
+		</transition>
+		<transition>
+			<source ref="id60"/>
+			<target ref="id61"/>
+			<label kind="guard" x="-1649" y="-263">CRMsgCounter == 0&amp;&amp;
+FRRMsgCounter == 0</label>
+			<nail x="-1530" y="-229"/>
+		</transition>
+		<transition>
+			<source ref="id60"/>
+			<target ref="id59"/>
+			<label kind="guard" x="-1436" y="-153">CRMsgCounter == 0&amp;&amp;
+FRRMsgCounter &gt; 0</label>
+			<label kind="assignment" x="-1436" y="-119">FRRPointer:=1,f=0</label>
+		</transition>
+	</template>
+	<template>
+		<name x="5" y="5">Arbitration</name>
+		<declaration>// Place local declarations here.
+clock x;
+
+</declaration>
+		<location id="id62" x="-25" y="145">
+			<name x="-110" y="136">msgTrans</name>
+			<label kind="invariant" x="-8" y="136">x&lt;=10*busCAN.frameLength</label>
+		</location>
+		<location id="id63" x="-25" y="8">
+			<name x="-68" y="-25">arbitration</name>
+			<urgent/>
+		</location>
+		<location id="id64" x="-25" y="-119">
+			<name x="-8" y="-127">idle</name>
+		</location>
+		<init ref="id64"/>
+		<transition>
+			<source ref="id63"/>
+			<target ref="id63"/>
+			<label kind="synchronisation" x="-238" y="-8">transmissionRequest?</label>
+			<label kind="assignment" x="-238" y="8">index:=1</label>
+			<nail x="-144" y="-17"/>
+			<nail x="-144" y="25"/>
+		</transition>
+		<transition>
+			<source ref="id63"/>
+			<target ref="id63"/>
+			<label kind="guard" x="93" y="-17">index&lt;(maxPriority) &amp;&amp;
+CANMsgForSend[index].length==0</label>
+			<label kind="assignment" x="93" y="17">index++</label>
+			<nail x="85" y="-18"/>
+			<nail x="85" y="24"/>
+		</transition>
+		<transition>
+			<source ref="id62"/>
+			<target ref="id62"/>
+			<label kind="synchronisation" x="-102" y="187">transmissionRequest?</label>
+			<nail x="25" y="187"/>
+			<nail x="-76" y="186"/>
+		</transition>
+		<transition>
+			<source ref="id63"/>
+			<target ref="id64"/>
+			<label kind="guard" x="-238" y="-85">index&gt;=(maxPriority)&amp;&amp;
+CANMsgForSend[index].length==0</label>
+			<nail x="-76" y="-51"/>
+		</transition>
+		<transition>
+			<source ref="id62"/>
+			<target ref="id63"/>
+			<label kind="guard" x="-238" y="59">x&gt;=10*busCAN.frameLength</label>
+			<label kind="synchronisation" x="-238" y="76">transEnd!</label>
+			<label kind="assignment" x="-238" y="93">index:=1</label>
+			<nail x="-85" y="76"/>
+		</transition>
+		<transition>
+			<source ref="id63"/>
+			<target ref="id62"/>
+			<label kind="guard" x="34" y="59">CANMsgForSend[index].length&gt;0</label>
+			<label kind="synchronisation" x="34" y="76">arbSuccess!</label>
+			<label kind="assignment" x="34" y="93">x:=0</label>
+			<nail x="34" y="76"/>
+		</transition>
+		<transition>
+			<source ref="id64"/>
+			<target ref="id63"/>
+			<label kind="synchronisation" x="17" y="-85">transmissionRequest?</label>
+			<label kind="assignment" x="34" y="-68">index:=1</label>
+			<nail x="25" y="-51"/>
+		</transition>
+	</template>
+	<template>
+		<name>Transceiver</name>
+		<declaration>const int arbitrationLength = 0;
+void transmit()
+{
+    busCAN.id = index;
+    busCAN.dest = CANMsgForSend[index].dest;
+    busCAN.length = CANMsgForSend[index].length;
+    busCAN.envir = 1;
+    busCAN.frameLength = CANMsgForSend[index].length + arbitrationLength;
+    CANMsgForSend[index].length = 0;
+}
+
+void receive()
+{
+  if(receiveCANMsg[busCAN.id].length != 0){
+   receiveCANMsg[busCAN.id].length = busCAN.length;
+   receiveCANMsg[busCAN.id].id = busCAN.id;
+   receiveCANMsg[busCAN.id].dest = busCAN.dest;
+   receiveCANMsg[busCAN.id].envir = busCAN.envir;
+  }
+  else{
+   CRMsgCounter++;
+   receiveCANMsg[busCAN.id].length = busCAN.length;
+   receiveCANMsg[busCAN.id].id = busCAN.id;
+   receiveCANMsg[busCAN.id].dest = busCAN.dest;
+   receiveCANMsg[busCAN.id].envir = busCAN.envir;
+   }  
+}
+
+void resetBusCAN()
+{
+  busCAN.id = 0;
+  busCAN.frameLength = 0;
+  busCAN.length=0;
+}</declaration>
+		<location id="id65" x="-280" y="-17">
+			<urgent/>
+		</location>
+		<location id="id66" x="-280" y="-170">
+			<name x="-331" y="-204">waitForEnd</name>
+		</location>
+		<location id="id67" x="-425" y="-170">
+			<name x="-459" y="-204">waitForTrans</name>
+		</location>
+		<init ref="id67"/>
+		<transition>
+			<source ref="id65"/>
+			<target ref="id67"/>
+			<label kind="synchronisation" x="-391" y="-34">forward!</label>
+			<label kind="assignment" x="-408" y="-17">resetBusCAN()</label>
+			<nail x="-425" y="-17"/>
+		</transition>
+		<transition>
+			<source ref="id66"/>
+			<target ref="id65"/>
+			<label kind="synchronisation" x="-306" y="-93">transEnd?</label>
+			<label kind="assignment" x="-306" y="-68">receive()</label>
+		</transition>
+		<transition>
+			<source ref="id67"/>
+			<target ref="id66"/>
+			<label kind="synchronisation" x="-391" y="-170">arbSuccess?</label>
+			<label kind="assignment" x="-382" y="-153">transmit()</label>
+		</transition>
+	</template>
+	<template>
+		<name>UrgentChannel</name>
+		<location id="id68" x="0" y="0">
+		</location>
+		<init ref="id68"/>
+		<transition>
+			<source ref="id68"/>
+			<target ref="id68"/>
+			<label kind="synchronisation" x="72" y="24">go!</label>
+			<nail x="64" y="0"/>
+			<nail x="64" y="64"/>
+			<nail x="0" y="64"/>
+		</transition>
+	</template>
+	<template>
+		<name>observerFR</name>
+		<declaration>clock x,y,m,n;</declaration>
+		<location id="id69" x="-42" y="-34">
+			<name x="-237" y="-51">FRReceiveBuffer_gateway1</name>
+		</location>
+		<location id="id70" x="59" y="85">
+			<name x="-68" y="102">FRReceiveBuffer_gateway2</name>
+		</location>
+		<location id="id71" x="-153" y="85">
+			<name x="-238" y="102">forwarding_gateway</name>
+		</location>
+		<location id="id72" x="-561" y="85">
+			<name x="-586" y="102">CANBus</name>
+		</location>
+		<location id="id73" x="-561" y="-17">
+			<name x="-544" y="-25">CANReceiveBuffer</name>
+			<urgent/>
+		</location>
+		<location id="id74" x="-408" y="85">
+			<name x="-493" y="102">CANSendBuffer_gateway</name>
+		</location>
+		<location id="id75" x="59" y="-136">
+			<name x="42" y="-119">committed</name>
+			<committed/>
+		</location>
+		<location id="id76" x="-178" y="-136">
+			<name x="-204" y="-119">FRBus</name>
+		</location>
+		<location id="id77" x="-331" y="-136">
+			<name x="-382" y="-119">FRSendBuffer</name>
+		</location>
+		<location id="id78" x="-561" y="-136">
+			<name x="-578" y="-110">initial</name>
+		</location>
+		<init ref="id78"/>
+		<transition>
+			<source ref="id70"/>
+			<target ref="id71"/>
+			<label kind="guard" x="-102" y="68">f==1</label>
+		</transition>
+		<transition>
+			<source ref="id69"/>
+			<target ref="id71"/>
+			<label kind="guard" x="-221" y="0">receiveFRMsg[2].length==0</label>
+			<label kind="synchronisation" x="-144" y="-25">go?</label>
+		</transition>
+		<transition>
+			<source ref="id75"/>
+			<target ref="id69"/>
+			<label kind="guard" x="-119" y="-93">receiveFRMsg[2].length
+&lt;= maxCANMsgLength</label>
+			<label kind="assignment" x="-17" y="-59">m:=0</label>
+		</transition>
+		<transition>
+			<source ref="id75"/>
+			<target ref="id70"/>
+			<label kind="guard" x="-68" y="25">receiveFRMsg[2].length
+&gt; maxCANMsgLength</label>
+			<label kind="assignment" x="25" y="-25">n:=0</label>
+		</transition>
+		<transition>
+			<source ref="id73"/>
+			<target ref="id78"/>
+			<label kind="assignment" x="-552" y="-93">x:=0,
+y:=0,
+m:=0,
+n:=0</label>
+		</transition>
+		<transition>
+			<source ref="id72"/>
+			<target ref="id73"/>
+			<label kind="guard" x="-552" y="0">receiveCANMsg[2].dest==1 &amp;&amp; 
+receiveCANMsg[2].dest &gt;0 &amp;&amp;
+busCAN.frameLength == 0</label>
+			<label kind="synchronisation" x="-586" y="17">go?</label>
+		</transition>
+		<transition>
+			<source ref="id74"/>
+			<target ref="id72"/>
+			<label kind="guard" x="-552" y="51">CANMsgForSend[2].length == 0</label>
+			<label kind="synchronisation" x="-510" y="85">go?</label>
+		</transition>
+		<transition>
+			<source ref="id71"/>
+			<target ref="id74"/>
+			<label kind="guard" x="-391" y="68">CANMsgForSend[2].length&gt;0</label>
+			<label kind="synchronisation" x="-289" y="93">go?</label>
+			<label kind="assignment" x="-365" y="93">n:=0</label>
+		</transition>
+		<transition>
+			<source ref="id76"/>
+			<target ref="id75"/>
+			<label kind="guard" x="-144" y="-170">receiveFRMsg[2].length&gt;0 &amp;&amp; 
+receiveFRMsg[2].dest==1</label>
+			<label kind="synchronisation" x="-51" y="-127">go?</label>
+		</transition>
+		<transition>
+			<source ref="id77"/>
+			<target ref="id76"/>
+			<label kind="guard" x="-348" y="-170">FRMsgForSend[2].length==0</label>
+			<label kind="synchronisation" x="-263" y="-136">go?</label>
+		</transition>
+		<transition>
+			<source ref="id78"/>
+			<target ref="id77"/>
+			<label kind="guard" x="-552" y="-170">FRMsgForSend[2].length&gt;0</label>
+			<label kind="synchronisation" x="-518" y="-136">go?</label>
+			<label kind="assignment" x="-493" y="-127">x:=0, y:=0</label>
+		</transition>
+	</template>
+	<system>
+system gatewayNew,Arbitration,Transceiver,POC,StaticMAC,DynamicMAC,NIT,
+FSP,UrgentChannel,FROneMsg,CANOneMsg;
+
+//FROneMsg
+//CANOneMsg
+//CANNoTCycle
+//FRNoTCycle
+//FRTCycle
+//CANTCycle
+
+//FROneMsg,CANOneMsg
+
+//FROneMsg,CANNoTCycle
+//FRNoTCycle,CANOneMsg
+
+//FROneMsg,CANTCycle
+//FRTCycle,CANOneMsg  </system>
+	<queries>
+		<query>
+			<formula>E&lt;&gt;(FRMsgForSend[2].length&gt;0)
+			</formula>
+			<comment>length =3
+			</comment>
+		</query>
+		<query>
+			<formula>E&lt;&gt;(CANMsgForSend[1].length&gt;0)
+			</formula>
+			<comment>length =3
+			</comment>
+		</query>
+		<query>
+			<formula>(FRMsgForSend[2].length&gt;0)--&gt;(FRMsgForSend[2].length==0)
+			</formula>
+			<comment>length=3
+			</comment>
+		</query>
+		<query>
+			<formula>(CANMsgForSend[1].length&gt;0)--&gt;(CANMsgForSend[1].length==0)
+			</formula>
+			<comment>length=3
+			</comment>
+		</query>
+		<query>
+			<formula>(FRMsgForSend[2].length&gt;0)--&gt;(busFlexRay.id==2 &amp;&amp; busFlexRay.length&gt;0)
+			</formula>
+			<comment>
+			</comment>
+		</query>
+		<query>
+			<formula>(CANMsgForSend[1].length&gt;0)--&gt;(busCAN.id==1 &amp;&amp; busCAN.length&gt;0)
+			</formula>
+			<comment>
+			</comment>
+		</query>
+		<query>
+			<formula>(busFlexRay.id==1 &amp;&amp; busFlexRay.length==0)--&gt;(receiveFRMsg[1].length&gt;0)
+			</formula>
+			<comment>
+			</comment>
+		</query>
+		<query>
+			<formula>(busCAN.id==1 &amp;&amp; busCAN.length==0)--&gt;(receiveCANMsg[1].length&gt;0)
+			</formula>
+			<comment>
+			</comment>
+		</query>
+		<query>
+			<formula>(receiveFRMsg[2].length&gt;0)--&gt;(CANMsgForSend[2].length&gt;0)
+			</formula>
+			<comment>
+			</comment>
+		</query>
+		<query>
+			<formula>(receiveCANMsg[1].length&gt;0)--&gt;(FRMsgForSend[3].length&gt;0)
+			</formula>
+			<comment>
+			</comment>
+		</query>
+		<query>
+			<formula>A[] not deadlock
+			</formula>
+			<comment>
+			</comment>
+		</query>
+	</queries>
+</nta>
